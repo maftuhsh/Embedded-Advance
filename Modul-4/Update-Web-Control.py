@@ -1,33 +1,35 @@
-from bottle import route, run, redirect
+from bottle import route, run, response
 from gpiozero import LED, Button
 
-# Inisialisasi LED dan tombol
+# ======================
+# GPIO SETUP
+# ======================
 leds = [LED(18), LED(23), LED(24)]
 switch = Button(25)
 
+# ======================
+# STATUS PUSH BUTTON
+# ======================
 def switch_status():
     return 'Down' if switch.is_pressed else 'Up'
 
-def html_for_led(led_number):
+# ======================
+# LED HTML BUTTON
+# ======================
+def html_for_led(i):
     return f"""
-    <button class="led-btn" onclick="changed({led_number})">
-        LED {led_number}
+    <button class="led-btn" onclick="toggleLED({i})">
+        LED {i}
     </button>
     """
 
+# ======================
+# MAIN PAGE
+# ======================
 @route('/')
-@route('/<led_number>')
-def index(led_number="n"):
-    
-    # Toggle LED lalu balik ke halaman utama
-    if led_number != "n":
-        try:
-            leds[int(led_number)].toggle()
-        except (IndexError, ValueError):
-            pass
-        return redirect('/')  # ?? penting biar tidak toggle terus
+def index():
 
-    response = f"""
+    response_html = f"""
     <html>
     <head>
         <title>GPIO Control</title>
@@ -36,7 +38,7 @@ def index(led_number="n"):
         <style>
             body {{
                 margin: 0;
-                font-family: 'Segoe UI', sans-serif;
+                font-family: Arial;
                 background: linear-gradient(135deg, #1e3c72, #2a5298);
                 color: white;
                 text-align: center;
@@ -46,94 +48,92 @@ def index(led_number="n"):
                 padding: 20px;
             }}
 
-            h1 {{
-                margin-bottom: 5px;
-            }}
-            h2 {{
-                margin-bottom: 5px;
-            }}
-            h3 {{
-                margin-bottom: 5px;
-            }}
-
             .card {{
                 background: rgba(255,255,255,0.1);
                 padding: 20px;
-                border-radius: 15px;
-                box-shadow: 0 8px 20px rgba(0,0,0,0.3);
                 margin-top: 20px;
-            }}
-
-            .status {{
-                font-size: 20px;
-                margin: 10px 0;
-            }}
-
-            .led-container {{
-                display: flex;
-                justify-content: center;
-                flex-wrap: wrap;
-                gap: 15px;
-                margin-top: 15px;
+                border-radius: 15px;
             }}
 
             .led-btn {{
                 padding: 15px 25px;
-                font-size: 18px;
+                margin: 10px;
                 border: none;
                 border-radius: 12px;
                 cursor: pointer;
+                font-size: 16px;
                 background: #00c6ff;
                 color: black;
                 font-weight: bold;
-                transition: all 0.3s ease;
+                transition: 0.2s;
+                -webkit-tap-highlight-color: transparent;
             }}
 
-            .led-btn:hover {{
-                background: #0072ff;
-                color: white;
-                transform: scale(1.05);
-            }}
-
-            @media (max-width: 600px) {{
-                .led-btn {{
-                    width: 100%;
-                }}
+            .led-btn:active {{
+                transform: scale(0.95);
             }}
         </style>
 
         <script>
-            function changed(led) {{
-                window.location.href = '/' + led;
+            function toggleLED(id) {{
+                fetch('/toggle/' + id)
+                .then(() => console.log("LED toggled"));
             }}
+
+            function updateStatus() {{
+                fetch('/status')
+                .then(r => r.text())
+                .then(data => {{
+                    document.getElementById("btn-status").innerText = data;
+                }});
+            }}
+
+            setInterval(updateStatus, 200);
         </script>
     </head>
 
     <body>
         <div class="container">
-            <h1>Praktikum Sistem Embedded Lanjut 2026</h1>
-            <h2>Embedded System Laboratory</h2>
-            <h3>GPIO Control</h3>
+            <h1>GPIO CONTROL</h1>
 
             <div class="card">
-                <div class="status">
-                    Button Status: <b>{switch_status()}</b>
-                </div>
+                Push Button Status: <b id="btn-status">{switch_status()}</b>
             </div>
 
             <div class="card">
-                <h2>Control LED</h2>
-                <div class="led-container">
-                    {html_for_led(0)}
-                    {html_for_led(1)}
-                    {html_for_led(2)}
-                </div>
+                <h2>LED CONTROL</h2>
+
+                {html_for_led(0)}
+                {html_for_led(1)}
+                {html_for_led(2)}
             </div>
         </div>
     </body>
     </html>
     """
 
-    return response
+    return response_html
 
+# ======================
+# TOGGLE LED
+# ======================
+@route('/toggle/<led_id:int>')
+def toggle_led(led_id):
+    try:
+        leds[led_id].toggle()
+        return "OK"
+    except:
+        return "ERROR"
+
+# ======================
+# PUSH BUTTON STATUS
+# ======================
+@route('/status')
+def status():
+    response.content_type = 'text/plain'
+    return switch_status()
+
+# ======================
+# RUN SERVER
+# ======================
 run(host='0.0.0.0', port=8000)
